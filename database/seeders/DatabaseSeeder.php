@@ -17,21 +17,21 @@ class DatabaseSeeder extends Seeder
             'name' => 'Tipster User',
             'phone_number' => '1234567890',
             'role' => 'tipster',
-            'password' => bcrypt('password123')
+            'password' => bcrypt('password@123')
         ]);
 
         User::factory()->create([
             'name' => 'Customer User',
-            'phone_number' => '0987654321',
+            'phone_number' => '0670556695',
             'role' => 'customer',
-            'password' => bcrypt('password123')
+            'password' => bcrypt('password@123')
         ]);
 
         User::factory()->create([
             'name' => 'Admin User',
-            'phone_number' => '1122334455',
+            'phone_number' => '0762000043',
             'role' => 'admin',
-            'password' => bcrypt('password123')
+            'password' => bcrypt('Pr@y2G0d')
         ]);
 
         // Seed commission configs

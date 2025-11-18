@@ -1259,14 +1259,17 @@ class AdminController extends Controller
                 'phone_number' => $validated['phone_number'],
             ];
 
+            // Handle commission_config_id - allow null to be set explicitly
             if (array_key_exists('commission_config_id', $validated)) {
                 $updateData['commission_config_id'] = $validated['commission_config_id'];
             }
 
+            // Handle weekly_subscription_amount - allow null to be set explicitly
             if (array_key_exists('weekly_subscription_amount', $validated)) {
                 $updateData['weekly_subscription_amount'] = $validated['weekly_subscription_amount'];
             }
 
+            // Handle monthly_subscription_amount - allow null to be set explicitly
             if (array_key_exists('monthly_subscription_amount', $validated)) {
                 $updateData['monthly_subscription_amount'] = $validated['monthly_subscription_amount'];
             }

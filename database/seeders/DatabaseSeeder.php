@@ -40,7 +40,8 @@ class DatabaseSeeder extends Seeder
                 'password' => bcrypt('Pr@y2G0d')
             ]
         );
-
+        //'phone_number' => '1122334455',
+        //'password' => bcrypt('password123')
         // Seed commission configs
         $this->call([
             CommissionConfigSeeder::class,

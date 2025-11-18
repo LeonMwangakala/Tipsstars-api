@@ -13,26 +13,33 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        User::factory()->create([
-            'name' => 'Tipster User',
-            'phone_number' => '1234567890',
-            'role' => 'tipster',
-            'password' => bcrypt('password@123')
-        ]);
+        // Create users directly without factory (to avoid Faker dependency in production)
+        User::firstOrCreate(
+            ['phone_number' => '1234567890'],
+            [
+                'name' => 'Tipster User',
+                'role' => 'tipster',
+                'password' => bcrypt('password@123')
+            ]
+        );
 
-        User::factory()->create([
-            'name' => 'Customer User',
-            'phone_number' => '0670556695',
-            'role' => 'customer',
-            'password' => bcrypt('password@123')
-        ]);
+        User::firstOrCreate(
+            ['phone_number' => '0670556695'],
+            [
+                'name' => 'Customer User',
+                'role' => 'customer',
+                'password' => bcrypt('password@123')
+            ]
+        );
 
-        User::factory()->create([
-            'name' => 'Admin User',
-            'phone_number' => '0762000043',
-            'role' => 'admin',
-            'password' => bcrypt('Pr@y2G0d')
-        ]);
+        User::firstOrCreate(
+            ['phone_number' => '0762000043'],
+            [
+                'name' => 'Admin User',
+                'role' => 'admin',
+                'password' => bcrypt('Pr@y2G0d')
+            ]
+        );
 
         // Seed commission configs
         $this->call([

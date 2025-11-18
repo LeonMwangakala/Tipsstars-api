@@ -114,10 +114,9 @@ class AdminController extends Controller
             });
         }
 
-        // Status filter (you can add status field to users table if needed)
-        if ($request->has('status') && $request->status !== 'all') {
-            // For now, we'll use a placeholder status logic
-            // You can implement actual status filtering based on your requirements
+        // Status filter
+        if ($request->has('status') && $request->status && $request->status !== 'all') {
+            $query->where('status', $request->status);
         }
 
         $tipsters = $query->orderByDesc('created_at')->paginate(15);

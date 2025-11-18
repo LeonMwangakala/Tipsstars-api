@@ -153,23 +153,30 @@ class AdminController extends Controller
         try {
             DB::beginTransaction();
 
-            $tipster->update([
+            $updateData = [
                 'status' => 'approved',
-                'admin_notes' => $request->admin_notes,
-            ]);
+            ];
+            
+            // Only update admin_notes if provided
+            if ($request->has('admin_notes')) {
+                $updateData['admin_notes'] = $request->admin_notes;
+            }
+
+            $tipster->update($updateData);
+            $tipster->refresh();
 
             DB::commit();
 
             Log::info('Tipster approved', [
                 'admin_id' => $admin->id,
                 'tipster_id' => $tipster->id,
-                'admin_notes' => $request->admin_notes,
+                'admin_notes' => $request->admin_notes ?? null,
             ]);
 
             return response()->json([
                 'success' => true,
                 'message' => 'Tipster approved successfully',
-                'tipster' => $tipster->load('tipsterRating'),
+                'tipster' => $tipster->load('tipsterRating', 'commissionConfig'),
             ]);
 
         } catch (\Exception $e) {
@@ -211,6 +218,7 @@ class AdminController extends Controller
                 'status' => 'rejected',
                 'admin_notes' => $request->admin_notes,
             ]);
+            $tipster->refresh();
 
             DB::commit();
 
@@ -223,7 +231,7 @@ class AdminController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Tipster rejected successfully',
-                'tipster' => $tipster->load('tipsterRating'),
+                'tipster' => $tipster->load('tipsterRating', 'commissionConfig'),
             ]);
 
         } catch (\Exception $e) {
@@ -592,6 +600,74 @@ class AdminController extends Controller
                 'message' => 'Failed to create subscription',
             ], 500);
         }
+    }
+
+    /**
+     * Get admin notifications
+     */
+    public function getNotifications()
+    {
+        $notifications = [];
+        
+        // Get pending tipster approvals
+        $pendingTipsters = User::where('role', 'tipster')
+            ->where('status', 'pending')
+            ->orderBy('created_at', 'desc')
+            ->limit(5)
+            ->get(['id', 'name', 'phone_number', 'created_at']);
+        
+        foreach ($pendingTipsters as $tipster) {
+            $notifications[] = [
+                'id' => 'tipster_' . $tipster->id,
+                'type' => 'tipster_approval',
+                'title' => 'Pending Tipster Approval',
+                'message' => $tipster->name . ' is waiting for approval',
+                'link' => '/tipster-approvals',
+                'created_at' => $tipster->created_at->toISOString(),
+                'icon' => 'user',
+                'color' => 'warning',
+            ];
+        }
+        
+        // Get pending withdrawal requests
+        $pendingWithdrawals = WithdrawalRequest::where('status', 'pending')
+            ->with('tipster:id,name,phone_number')
+            ->orderBy('created_at', 'desc')
+            ->limit(5)
+            ->get(['id', 'tipster_id', 'amount', 'created_at']);
+        
+        foreach ($pendingWithdrawals as $withdrawal) {
+            $notifications[] = [
+                'id' => 'withdrawal_' . $withdrawal->id,
+                'type' => 'withdrawal_approval',
+                'title' => 'Pending Withdrawal Request',
+                'message' => $withdrawal->tipster->name . ' requested ' . number_format($withdrawal->amount) . ' TZS',
+                'link' => '/withdrawals',
+                'created_at' => $withdrawal->created_at->toISOString(),
+                'icon' => 'money',
+                'color' => 'info',
+            ];
+        }
+        
+        // Sort by created_at descending
+        usort($notifications, function($a, $b) {
+            return strtotime($b['created_at']) - strtotime($a['created_at']);
+        });
+        
+        // Get counts
+        $pendingTipstersCount = User::where('role', 'tipster')->where('status', 'pending')->count();
+        $pendingWithdrawalsCount = WithdrawalRequest::where('status', 'pending')->count();
+        $totalCount = $pendingTipstersCount + $pendingWithdrawalsCount;
+        
+        return response()->json([
+            'success' => true,
+            'notifications' => array_slice($notifications, 0, 10), // Limit to 10 most recent
+            'counts' => [
+                'pending_tipsters' => $pendingTipstersCount,
+                'pending_withdrawals' => $pendingWithdrawalsCount,
+                'total' => $totalCount,
+            ],
+        ]);
     }
 
     /**
@@ -971,7 +1047,19 @@ class AdminController extends Controller
         try {
             DB::beginTransaction();
 
-            $withdrawal->markAsPaid($admin->id, $request->notes);
+            $updateData = [
+                'status' => 'paid',
+                'paid_at' => now(),
+                'admin_id' => $admin->id,
+            ];
+            
+            // Only update notes if provided
+            if ($request->has('notes') && $request->notes) {
+                $updateData['notes'] = $request->notes;
+            }
+
+            $withdrawal->update($updateData);
+            $withdrawal->refresh();
 
             DB::commit();
 
@@ -980,7 +1068,7 @@ class AdminController extends Controller
                 'withdrawal_id' => $withdrawal->id,
                 'tipster_id' => $withdrawal->tipster_id,
                 'amount' => $withdrawal->amount,
-                'notes' => $request->notes,
+                'notes' => $request->notes ?? null,
             ]);
 
             return response()->json([
@@ -1024,7 +1112,12 @@ class AdminController extends Controller
         try {
             DB::beginTransaction();
 
-            $withdrawal->markAsRejected($admin->id, $request->notes);
+            $withdrawal->update([
+                'status' => 'rejected',
+                'admin_id' => $admin->id,
+                'notes' => $request->notes,
+            ]);
+            $withdrawal->refresh();
 
             DB::commit();
 

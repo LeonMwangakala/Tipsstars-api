@@ -72,8 +72,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch('/admin/bookers/{id}', [AdminController::class, 'updateBooker']);
         Route::delete('/admin/bookers/{id}', [AdminController::class, 'deleteBooker']);
         Route::post('/admin/register-user', [AdminController::class, 'registerUser']);
-Route::get('/admin/tipsters/{id}/id-document', [AdminController::class, 'getTipsterIdDocument']);
+        Route::get('/admin/tipsters/{id}/id-document', [AdminController::class, 'getTipsterIdDocument']);
 Route::patch('/admin/tipsters/{id}', [AdminController::class, 'updateTipster']);
+        Route::get('/admin/notifications', [AdminController::class, 'getNotifications']);
         Route::post('/admin/notifications', [AdminController::class, 'sendNotification']);
         
         // Admin Users Management

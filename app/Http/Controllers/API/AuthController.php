@@ -105,10 +105,28 @@ class AuthController extends Controller
             'name' => 'sometimes|string|max:255', // Optional name for new users
         ]);
 
-        $otp = OtpCode::where('phone_number', $request->phone_number)
-                      ->where('code', $request->code)
-                      ->where('expires_at', '>', now())
-                      ->latest()->first();
+        // Test mode: Accept test OTP code (1234) in development
+        $isTestMode = env('APP_ENV') === 'local' || env('APP_DEBUG') === true;
+        $testOtpCode = '1234';
+        
+        if ($isTestMode && $request->code === $testOtpCode) {
+            // Test mode: Create OTP record if it doesn't exist for test code
+            $otp = OtpCode::firstOrCreate(
+                [
+                    'phone_number' => $request->phone_number,
+                    'code' => $testOtpCode,
+                ],
+                [
+                    'expires_at' => now()->addMinutes(60), // Extended expiry for test
+                ]
+            );
+        } else {
+            // Normal OTP verification
+            $otp = OtpCode::where('phone_number', $request->phone_number)
+                          ->where('code', $request->code)
+                          ->where('expires_at', '>', now())
+                          ->latest()->first();
+        }
 
         if (!$otp) {
             return response()->json(['message' => 'Invalid or expired OTP'], 400);

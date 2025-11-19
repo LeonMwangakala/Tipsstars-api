@@ -79,21 +79,35 @@ class AuthController extends Controller
     public function sendOtp(Request $request)
     {
         try {
-            $request->validate(['phone_number' => 'required']);
+            // Log the incoming request
+            \Log::info('OTP Request received', [
+                'phone_number' => $request->phone_number ?? 'N/A',
+                'ip' => $request->ip(),
+            ]);
+
+            $request->validate(['phone_number' => 'required|string']);
 
             $code = rand(1000, 9999);
             
             // Check if database connection is working
             try {
-                OtpCode::create([
+                $otpCode = OtpCode::create([
                     'phone_number' => $request->phone_number,
-                    'code' => $code,
+                    'code' => (string) $code, // Ensure code is string
                     'expires_at' => now()->addMinutes(5),
                 ]);
+                
+                \Log::info('OTP Code created successfully', [
+                    'otp_id' => $otpCode->id,
+                    'phone_number' => $request->phone_number,
+                ]);
             } catch (\Illuminate\Database\QueryException $dbException) {
-                \Log::error('Database error sending OTP: ' . $dbException->getMessage(), [
+                \Log::error('Database error sending OTP', [
+                    'message' => $dbException->getMessage(),
+                    'code' => $dbException->getCode(),
+                    'sql' => $dbException->getSql() ?? 'N/A',
                     'phone_number' => $request->phone_number ?? 'N/A',
-                    'sql_state' => $dbException->getCode(),
+                    'trace' => $dbException->getTraceAsString(),
                 ]);
                 
                 // Check if it's a table missing error
@@ -110,33 +124,52 @@ class AuthController extends Controller
                 
                 // Re-throw to be caught by outer catch
                 throw $dbException;
+            } catch (\PDOException $pdoException) {
+                \Log::error('PDO error sending OTP', [
+                    'message' => $pdoException->getMessage(),
+                    'code' => $pdoException->getCode(),
+                    'phone_number' => $request->phone_number ?? 'N/A',
+                ]);
+                
+                throw $pdoException;
             }
 
             // TODO: Integrate SMS provider like Beem to send OTP
             // For development, we'll log the OTP
             \Log::info('OTP Code for ' . $request->phone_number . ': ' . $code);
 
-            return response()->json(['message' => 'OTP sent']);
+            return response()->json([
+                'message' => 'OTP sent',
+                'success' => true
+            ]);
         } catch (\Illuminate\Validation\ValidationException $validationException) {
+            \Log::warning('OTP validation failed', [
+                'errors' => $validationException->errors(),
+                'phone_number' => $request->phone_number ?? 'N/A',
+            ]);
+            
             return response()->json([
                 'message' => 'Validation failed',
                 'errors' => $validationException->errors()
             ], 422);
         } catch (\Exception $e) {
-            \Log::error('Error sending OTP: ' . $e->getMessage(), [
-                'trace' => $e->getTraceAsString(),
-                'phone_number' => $request->phone_number ?? 'N/A',
+            \Log::error('Error sending OTP', [
+                'message' => $e->getMessage(),
+                'type' => get_class($e),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+                'phone_number' => $request->phone_number ?? 'N/A',
             ]);
             
             $errorMessage = config('app.debug') 
-                ? $e->getMessage() 
+                ? $e->getMessage() . ' (File: ' . basename($e->getFile()) . ':' . $e->getLine() . ')'
                 : 'Internal server error. Please try again later.';
             
             return response()->json([
                 'message' => 'Failed to send OTP',
-                'error' => $errorMessage
+                'error' => $errorMessage,
+                'success' => false
             ], 500);
         }
     }

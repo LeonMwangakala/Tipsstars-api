@@ -103,6 +103,22 @@ class AuthController extends Controller
 
             $request->validate(['phone_number' => 'required|string']);
 
+            // Check if user exists with this phone number
+            $user = User::where('phone_number', $request->phone_number)->first();
+            
+            if (!$user) {
+                $this->safeLog('info', 'User not found for phone number', [
+                    'phone_number' => $request->phone_number,
+                ]);
+                
+                return response()->json([
+                    'message' => 'User not found',
+                    'error' => 'This phone number is not registered. Please sign up first.',
+                    'user_exists' => false,
+                    'success' => false
+                ], 404);
+            }
+
             $code = rand(1000, 9999);
             
             // Check if database connection is working
@@ -116,6 +132,7 @@ class AuthController extends Controller
                 $this->safeLog('info', 'OTP Code created successfully', [
                     'otp_id' => $otpCode->id,
                     'phone_number' => $request->phone_number,
+                    'user_id' => $user->id,
                 ]);
             } catch (\Illuminate\Database\QueryException $dbException) {
                 $this->safeLog('error', 'Database error sending OTP', [
@@ -155,6 +172,7 @@ class AuthController extends Controller
 
             return response()->json([
                 'message' => 'OTP sent',
+                'user_exists' => true,
                 'success' => true
             ]);
         } catch (\Illuminate\Validation\ValidationException $validationException) {

@@ -76,11 +76,27 @@ class AuthController extends Controller
     /**
      * Send OTP to phone number
      */
+    /**
+     * Safe logging helper that won't break the request if logging fails
+     */
+    private function safeLog($level, $message, $context = [])
+    {
+        try {
+            \Log::{$level}($message, $context);
+        } catch (\Exception $e) {
+            // Silently fail - don't let logging errors break the API
+            // In production, you might want to use error_log() as fallback
+            if (config('app.debug')) {
+                error_log("Logging failed: {$e->getMessage()}");
+            }
+        }
+    }
+
     public function sendOtp(Request $request)
     {
         try {
-            // Log the incoming request
-            \Log::info('OTP Request received', [
+            // Log the incoming request (safely)
+            $this->safeLog('info', 'OTP Request received', [
                 'phone_number' => $request->phone_number ?? 'N/A',
                 'ip' => $request->ip(),
             ]);
@@ -97,17 +113,16 @@ class AuthController extends Controller
                     'expires_at' => now()->addMinutes(5),
                 ]);
                 
-                \Log::info('OTP Code created successfully', [
+                $this->safeLog('info', 'OTP Code created successfully', [
                     'otp_id' => $otpCode->id,
                     'phone_number' => $request->phone_number,
                 ]);
             } catch (\Illuminate\Database\QueryException $dbException) {
-                \Log::error('Database error sending OTP', [
+                $this->safeLog('error', 'Database error sending OTP', [
                     'message' => $dbException->getMessage(),
                     'code' => $dbException->getCode(),
                     'sql' => $dbException->getSql() ?? 'N/A',
                     'phone_number' => $request->phone_number ?? 'N/A',
-                    'trace' => $dbException->getTraceAsString(),
                 ]);
                 
                 // Check if it's a table missing error
@@ -125,7 +140,7 @@ class AuthController extends Controller
                 // Re-throw to be caught by outer catch
                 throw $dbException;
             } catch (\PDOException $pdoException) {
-                \Log::error('PDO error sending OTP', [
+                $this->safeLog('error', 'PDO error sending OTP', [
                     'message' => $pdoException->getMessage(),
                     'code' => $pdoException->getCode(),
                     'phone_number' => $request->phone_number ?? 'N/A',
@@ -135,15 +150,15 @@ class AuthController extends Controller
             }
 
             // TODO: Integrate SMS provider like Beem to send OTP
-            // For development, we'll log the OTP
-            \Log::info('OTP Code for ' . $request->phone_number . ': ' . $code);
+            // For development, we'll log the OTP (safely)
+            $this->safeLog('info', 'OTP Code for ' . $request->phone_number . ': ' . $code);
 
             return response()->json([
                 'message' => 'OTP sent',
                 'success' => true
             ]);
         } catch (\Illuminate\Validation\ValidationException $validationException) {
-            \Log::warning('OTP validation failed', [
+            $this->safeLog('warning', 'OTP validation failed', [
                 'errors' => $validationException->errors(),
                 'phone_number' => $request->phone_number ?? 'N/A',
             ]);
@@ -153,12 +168,11 @@ class AuthController extends Controller
                 'errors' => $validationException->errors()
             ], 422);
         } catch (\Exception $e) {
-            \Log::error('Error sending OTP', [
+            $this->safeLog('error', 'Error sending OTP', [
                 'message' => $e->getMessage(),
                 'type' => get_class($e),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString(),
                 'phone_number' => $request->phone_number ?? 'N/A',
             ]);
             

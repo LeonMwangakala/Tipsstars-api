@@ -15,6 +15,9 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'role' => \App\Http\Middleware\CheckRole::class,
         ]);
+        
+        // CORS is handled automatically by Laravel when config/cors.php exists
+        // No need to manually add HandleCors middleware
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

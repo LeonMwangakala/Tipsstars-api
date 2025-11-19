@@ -119,6 +119,22 @@ class AuthController extends Controller
                 ], 404);
             }
 
+            // Check if user is a tipster
+            if ($user->role !== 'tipster') {
+                $this->safeLog('info', 'Non-tipster user attempted to sign in', [
+                    'phone_number' => $request->phone_number,
+                    'user_role' => $user->role,
+                ]);
+                
+                return response()->json([
+                    'message' => 'Access denied',
+                    'error' => 'Only tipsters are allowed to sign in to this app.',
+                    'user_exists' => true,
+                    'user_role' => $user->role,
+                    'success' => false
+                ], 403);
+            }
+
             $code = rand(1000, 9999);
             
             // Check if database connection is working

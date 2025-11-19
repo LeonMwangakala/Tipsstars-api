@@ -78,20 +78,67 @@ class AuthController extends Controller
      */
     public function sendOtp(Request $request)
     {
-        $request->validate(['phone_number' => 'required']);
+        try {
+            $request->validate(['phone_number' => 'required']);
 
-        $code = rand(1000, 9999);
-        OtpCode::create([
-            'phone_number' => $request->phone_number,
-            'code' => $code,
-            'expires_at' => now()->addMinutes(5),
-        ]);
+            $code = rand(1000, 9999);
+            
+            // Check if database connection is working
+            try {
+                OtpCode::create([
+                    'phone_number' => $request->phone_number,
+                    'code' => $code,
+                    'expires_at' => now()->addMinutes(5),
+                ]);
+            } catch (\Illuminate\Database\QueryException $dbException) {
+                \Log::error('Database error sending OTP: ' . $dbException->getMessage(), [
+                    'phone_number' => $request->phone_number ?? 'N/A',
+                    'sql_state' => $dbException->getCode(),
+                ]);
+                
+                // Check if it's a table missing error
+                if (str_contains($dbException->getMessage(), 'does not exist') || 
+                    str_contains($dbException->getMessage(), 'relation') ||
+                    str_contains($dbException->getMessage(), 'table')) {
+                    return response()->json([
+                        'message' => 'Database configuration error',
+                        'error' => config('app.debug') 
+                            ? 'The otp_codes table does not exist. Please run migrations: php artisan migrate' 
+                            : 'Database table missing. Please contact administrator.'
+                    ], 500);
+                }
+                
+                // Re-throw to be caught by outer catch
+                throw $dbException;
+            }
 
-        // TODO: Integrate SMS provider like Beem to send OTP
-        // For development, we'll log the OTP
-        \Log::info('OTP Code for ' . $request->phone_number . ': ' . $code);
+            // TODO: Integrate SMS provider like Beem to send OTP
+            // For development, we'll log the OTP
+            \Log::info('OTP Code for ' . $request->phone_number . ': ' . $code);
 
-        return response()->json(['message' => 'OTP sent']);
+            return response()->json(['message' => 'OTP sent']);
+        } catch (\Illuminate\Validation\ValidationException $validationException) {
+            return response()->json([
+                'message' => 'Validation failed',
+                'errors' => $validationException->errors()
+            ], 422);
+        } catch (\Exception $e) {
+            \Log::error('Error sending OTP: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+                'phone_number' => $request->phone_number ?? 'N/A',
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+            
+            $errorMessage = config('app.debug') 
+                ? $e->getMessage() 
+                : 'Internal server error. Please try again later.';
+            
+            return response()->json([
+                'message' => 'Failed to send OTP',
+                'error' => $errorMessage
+            ], 500);
+        }
     }
 
     /**
